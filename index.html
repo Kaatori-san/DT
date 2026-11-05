@@ -1,0 +1,1951 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Bloom Daily — Interactive Pastel Planner (IndexedDB)</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Lora:ital,wght@0,400;0,500;0,600;0,700;1,400;1,500&family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        'bloom-bg': '#FBF9FA',
+                        'bloom-surface': '#F7F4F6',
+                        'bloom-purple': '#B49BC0',
+                        'bloom-purple-dark': '#332B3A',
+                        'bloom-lilac': '#F1E8F4',
+                        'bloom-lavender-row': '#EFE9F4',
+                        'bloom-pink': '#F6DCE4',
+                        'bloom-mood-yellow': '#F9E9C8',
+                        'bloom-mood-lilac': '#EFE6F4',
+                        'bloom-mood-mint': '#DDF0E6',
+                        'bloom-mood-sky': '#DCEBF2',
+                        'bloom-mood-pink': '#F6DEE5',
+                    },
+                    fontFamily: {
+                        sans: ['"Plus Jakarta Sans"', 'sans-serif'],
+                        serif: ['"Lora"', 'serif'],
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        body {
+            background-color: #F7F4F6;
+            color: #332B3A;
+            font-family: 'Plus Jakarta Sans', sans-serif;
+        }
+
+        /* Smooth transitions */
+        .page-section {
+            transition: opacity 0.25s ease, transform 0.25s ease;
+        }
+        .page-hidden {
+            display: none !important;
+        }
+        .quote-fade {
+            transition: opacity 0.22s ease, transform 0.22s ease;
+        }
+
+        /* Custom Square Checkbox for Daily Checklist */
+        .check-square {
+            appearance: none;
+            -webkit-appearance: none;
+            width: 1.15rem;
+            height: 1.15rem;
+            border: 1.5px solid #B49BC0;
+            border-radius: 0.28rem;
+            background-color: #fff;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            transition: all 0.18s ease;
+            flex-shrink: 0;
+        }
+        .check-square:hover {
+            border-color: #332B3A;
+            background-color: #F1E8F4;
+        }
+        .check-square:checked {
+            background-color: #967AA6;
+            border-color: #967AA6;
+        }
+        .check-square:checked::after {
+            content: '✓';
+            color: white;
+            font-size: 0.74rem;
+            font-weight: 700;
+            line-height: 1;
+        }
+
+        /* Custom Circle Checkbox for Habit Tracker */
+        .check-circle {
+            appearance: none;
+            -webkit-appearance: none;
+            width: 1.25rem;
+            height: 1.25rem;
+            border: 1.5px solid #7E6F8A;
+            border-radius: 9999px;
+            background-color: transparent;
+            cursor: pointer;
+            transition: all 0.18s ease;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+        }
+        .check-circle:hover {
+            transform: scale(1.12);
+            border-color: #332B3A;
+            background-color: rgba(180, 155, 192, 0.22);
+        }
+        .check-circle:checked {
+            background-color: #967AA6;
+            border-color: #967AA6;
+            box-shadow: 0 2px 5px rgba(150, 122, 166, 0.35);
+        }
+        .check-circle:checked::after {
+            content: '✓';
+            color: #fff;
+            font-size: 0.72rem;
+            font-weight: 700;
+        }
+
+        /* Underlined Inputs Matching Wireframe */
+        .input-line {
+            background: transparent;
+            border: none;
+            border-bottom: 1px solid rgba(51, 43, 58, 0.42);
+            border-radius: 0;
+            outline: none;
+            width: 100%;
+            padding: 0.25rem 0.15rem;
+            color: #332B3A;
+            transition: border-color 0.2s ease;
+        }
+        .input-line:focus {
+            border-bottom-color: #332B3A;
+            border-bottom-width: 1.5px;
+        }
+
+        /* Mood Selection Buttons */
+        .mood-btn {
+            transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+        }
+        .mood-btn:hover {
+            transform: translateY(-2px);
+        }
+        .mood-btn.active {
+            box-shadow: 0 0 0 2px #332B3A, 0 6px 14px -3px rgba(51, 43, 58, 0.18);
+            transform: translateY(-2px) scale(1.03);
+        }
+
+        /* Calendar 7-Column Grid */
+        .calendar-grid {
+            display: grid;
+            grid-template-columns: repeat(7, minmax(112px, 1fr));
+            gap: 0.625rem;
+        }
+        .calendar-cell {
+            position: relative;
+            min-height: 98px;
+            padding: 1.65rem 0.6rem 0.65rem 0.6rem;
+            border-radius: 0.75rem;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            text-align: center;
+            cursor: pointer;
+            pointer-events: auto !important;
+            z-index: 10;
+            transition: all 0.18s ease;
+        }
+        .calendar-cell:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 14px rgba(51, 43, 58, 0.08);
+            outline: 1.5px solid rgba(183, 155, 200, 0.65);
+        }
+        .calendar-cell * {
+            pointer-events: auto !important;
+        }
+
+        /* Exact Wireframe Column Pastel Colors */
+        .cell-white  { background-color: #F5F5F8; } /* Col 1 (Mon) & Col 5 (Fri) */
+        .cell-lilac  { background-color: #EAE2F3; } /* Col 2 (Tue) & Col 7 (Sun) */
+        .cell-pink   { background-color: #F6DCE4; } /* Col 3 (Wed) */
+        .cell-mint   { background-color: #DCF0E5; } /* Col 4 (Thu) */
+        .cell-yellow { background-color: #F8E8C8; } /* Col 6 (Sat) */
+
+        @media print {
+            .no-print {
+                display: none !important;
+            }
+            .page-section {
+                display: block !important;
+                margin-bottom: 2rem;
+                page-break-inside: avoid;
+                box-shadow: none !important;
+            }
+            body {
+                background-color: #FFFFFF;
+            }
+        }
+    </style>
+</head>
+<body class="min-h-screen flex flex-col selection:bg-bloom-purple selection:text-white">
+
+    <!-- STICKY TOP NAVBAR -->
+    <header class="sticky top-0 z-40 backdrop-blur-md bg-[#FBF9FA]/90 border-b border-bloom-purple/20 no-print">
+        <div class="max-w-6xl mx-auto px-4 sm:px-8 py-3 flex flex-wrap items-center justify-between gap-3">
+            
+            <!-- Brand & Live IndexedDB Status -->
+            <div class="flex items-center gap-3">
+                <div onclick="switchTab('daily')" class="flex items-center gap-2.5 cursor-pointer group">
+                    <div class="w-8 h-8 rounded-xl bg-bloom-purple text-white flex items-center justify-center shadow-xs text-lg group-hover:scale-105 transition-transform">
+                        ✿
+                    </div>
+                    <div>
+                        <span class="font-bold tracking-[0.16em] text-xs uppercase text-bloom-purple-dark block">Bloom Daily</span>
+                        <button onclick="event.stopPropagation(); openDbModal()" class="text-[10px] text-gray-500 hover:text-bloom-purple-dark flex items-center gap-1.5 transition-colors" title="Open IndexedDB Manager">
+                            <span id="db-status-dot" class="w-1.5 h-1.5 rounded-full bg-emerald-500 inline-block"></span>
+                            <span id="db-status-text" class="underline decoration-dotted underline-offset-2">IndexedDB Connected</span>
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Page Navigation Tabs -->
+            <nav class="flex items-center bg-white/95 p-1 rounded-full shadow-xs border border-bloom-purple/20 overflow-x-auto max-w-full">
+                <button onclick="switchTab('daily')" id="tab-daily" class="nav-tab px-4 py-1.5 rounded-full text-xs font-semibold transition-all whitespace-nowrap bg-bloom-purple-dark text-white shadow-xs">
+                    ✨ Daily Space
+                </button>
+                <button onclick="switchTab('habits')" id="tab-habits" class="nav-tab px-4 py-1.5 rounded-full text-xs font-semibold transition-all whitespace-nowrap text-gray-600 hover:text-bloom-purple-dark">
+                    ○ Habit Tracker
+                </button>
+                <button onclick="switchTab('calendar')" id="tab-calendar" class="nav-tab px-4 py-1.5 rounded-full text-xs font-semibold transition-all whitespace-nowrap text-gray-600 hover:text-bloom-purple-dark">
+                    🗓️ Monthly Calendar
+                </button>
+                <button onclick="switchTab('all')" id="tab-all" class="nav-tab px-4 py-1.5 rounded-full text-xs font-semibold transition-all whitespace-nowrap text-gray-600 hover:text-bloom-purple-dark">
+                    📄 All-in-One View
+                </button>
+            </nav>
+
+            <!-- Action Buttons: IndexedDB Backup & Print -->
+            <div class="flex items-center gap-2">
+                <button onclick="openDbModal()" class="text-xs font-medium px-3 py-1.5 rounded-full bg-white border border-gray-200 text-bloom-purple-dark hover:border-bloom-purple transition-all shadow-xs flex items-center gap-1.5">
+                    <span>🗄️</span> <span class="hidden sm:inline">IndexedDB Data</span>
+                </button>
+                <button onclick="window.print()" class="text-xs font-medium px-3 py-1.5 rounded-full bg-white border border-gray-200 text-gray-600 hover:border-bloom-purple hover:text-bloom-purple-dark transition-all shadow-xs" title="Print or Save as PDF">
+                    🖨️ <span class="hidden sm:inline">Print / PDF</span>
+                </button>
+            </div>
+        </div>
+    </header>
+
+    <!-- MAIN PLANNER CONTAINER -->
+    <main class="max-w-6xl w-full mx-auto px-4 sm:px-8 py-6 md:py-10 flex-1 flex flex-col gap-14">
+
+        <!-- =======================================================
+             PAGE 1: DAILY SPACE ("Good things take time ✨")
+             ======================================================= -->
+        <section id="page-daily" class="page-section bg-bloom-bg rounded-[2rem] p-5 sm:p-8 md:p-10 shadow-xs border border-white">
+            <div class="flex flex-col lg:flex-row gap-8 items-stretch">
+                
+                <!-- Left Lavender Sidebar Card -->
+                <div class="bg-bloom-purple text-white rounded-[2.25rem] p-8 sm:p-10 lg:w-[31%] flex flex-col items-center justify-between text-center shadow-xs min-h-[520px]">
+                    <div class="flex flex-col items-center w-full mt-2">
+                        <div class="flex items-center gap-2.5 mb-12">
+                            <span class="text-2xl leading-none">✿</span>
+                            <h2 class="tracking-[0.18em] font-bold text-base sm:text-lg uppercase">Bloom Daily</h2>
+                        </div>
+                        
+                        <h1 class="text-3xl sm:text-[2.15rem] font-serif leading-[1.25] mb-7 font-normal">
+                            A little<br>motivation<br>for a better you
+                        </h1>
+                        
+                        <p class="text-sm sm:text-[15px] leading-relaxed font-normal text-white/90 max-w-[235px] mb-10">
+                            Grow at your own pace.<br>You're doing better than you think.
+                        </p>
+                    </div>
+                    
+                    <div class="flex flex-col items-center w-full">
+                        <button onclick="openFreshStartModal()" class="bg-bloom-purple-dark hover:bg-[#231d29] active:scale-95 text-white text-[11px] font-bold py-3.5 px-7 rounded-xl shadow-md transition-all uppercase tracking-[0.12em] w-full max-w-[220px] mb-9">
+                            Today is a fresh start
+                        </button>
+                        
+                        <p class="text-sm font-serif italic text-white/95 tracking-wide">
+                            ♡ One day at a time ♡
+                        </p>
+                    </div>
+                </div>
+
+                <!-- Right Daily Content Area -->
+                <div class="lg:w-[69%] flex flex-col justify-between gap-6">
+                    
+                    <!-- Top Header Row -->
+                    <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+                        <div>
+                            <h2 class="text-3xl sm:text-[2.35rem] font-serif font-bold text-bloom-purple-dark mb-1.5 flex items-center gap-2">
+                                Good things take time <span class="text-2xl">✨</span>
+                            </h2>
+                            <p class="text-[11px] tracking-[0.15em] text-gray-500 uppercase font-semibold">
+                                Your daily space for motivation, habits & self-care
+                            </p>
+                        </div>
+
+                        <!-- TODAY • Date Pill -->
+                        <div class="bg-white rounded-2xl px-5 py-3 shadow-xs border border-gray-100 flex items-center gap-2 self-stretch sm:self-auto justify-between">
+                            <label for="daily-date-input" class="text-xs font-bold tracking-wider uppercase text-bloom-purple-dark whitespace-nowrap">
+                                TODAY •
+                            </label>
+                            <input 
+                                type="text" 
+                                id="daily-date-input" 
+                                placeholder="Nov 6, 2026"
+                                class="text-xs font-medium text-bloom-purple-dark bg-transparent border-b border-gray-300 focus:border-bloom-purple-dark focus:outline-none pb-0.5 w-28 text-center"
+                                oninput="debouncedSaveDailySpace()"
+                            >
+                        </div>
+                    </div>
+
+                    <!-- Middle Row: Today's Motivation & Today's One Small Goal -->
+                    <div class="grid grid-cols-1 md:grid-cols-12 gap-5">
+                        
+                        <!-- Today's Motivation Card -->
+                        <div class="md:col-span-7 bg-bloom-lilac rounded-3xl p-6 sm:p-7 flex flex-col justify-between relative min-h-[168px]">
+                            <div class="flex items-center justify-between">
+                                <span class="text-[11px] uppercase tracking-[0.14em] font-semibold text-gray-500 mx-auto pl-12">
+                                    Today's Motivation
+                                </span>
+                                <div class="flex items-center gap-1 no-print">
+                                    <button onclick="shuffleMotivationQuote()" class="text-[11px] bg-white/80 hover:bg-white text-bloom-purple-dark font-semibold px-2.5 py-1 rounded-full shadow-xs transition-all flex items-center gap-1" title="Shuffle Quote">
+                                        ✨ Shuffle
+                                    </button>
+                                    <button onclick="toggleCustomQuoteEditor()" class="text-[11px] bg-white/60 hover:bg-white text-gray-600 px-2 py-1 rounded-full transition-all" title="Write custom quote">
+                                        ✎
+                                    </button>
+                                </div>
+                            </div>
+
+                            <div class="my-auto py-3 text-center">
+                                <p id="daily-quote-text" class="quote-fade text-xl sm:text-2xl font-serif italic text-bloom-purple-dark leading-snug px-2">
+                                    “Small steps still move you forward.”
+                                </p>
+                                <!-- Inline Custom Quote Editor -->
+                                <div id="custom-quote-editor" class="hidden mt-3 flex items-center gap-2 no-print">
+                                    <input type="text" id="custom-quote-input" placeholder="Enter your custom quote..." class="text-xs bg-white rounded-lg px-3 py-1.5 w-full border border-bloom-purple focus:outline-none">
+                                    <button onclick="saveCustomQuote()" class="text-xs bg-bloom-purple-dark text-white px-3 py-1.5 rounded-lg font-semibold">Save</button>
+                                </div>
+                            </div>
+
+                            <div class="h-2"></div>
+                        </div>
+
+                        <!-- Today's One Small Goal Card -->
+                        <div class="md:col-span-5 bg-bloom-pink rounded-3xl p-6 sm:p-7 flex flex-col justify-between min-h-[168px]">
+                            <div class="text-center">
+                                <h3 class="text-[11px] uppercase tracking-[0.14em] font-semibold text-bloom-purple-dark">
+                                    Today's One Small Goal
+                                </h3>
+                            </div>
+
+                            <div class="flex flex-col gap-3.5 my-auto py-2 px-2">
+                                <input 
+                                    type="text" 
+                                    id="goal-line-1" 
+                                    class="input-line text-sm text-center font-medium placeholder-bloom-purple-dark/35" 
+                                    placeholder=""
+                                    aria-label="Small Goal Line 1"
+                                    oninput="debouncedSaveDailySpace()"
+                                >
+                                <input 
+                                    type="text" 
+                                    id="goal-line-2" 
+                                    class="input-line text-sm text-center font-medium placeholder-bloom-purple-dark/35" 
+                                    placeholder=""
+                                    aria-label="Small Goal Line 2"
+                                    oninput="debouncedSaveDailySpace()"
+                                >
+                            </div>
+                            <div class="h-2"></div>
+                        </div>
+                    </div>
+
+                    <!-- Bottom Row: Daily Checklist & How Are You Feeling? -->
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-5">
+                        
+                        <!-- Daily Checklist Card -->
+                        <div class="bg-white rounded-3xl p-6 sm:p-7 shadow-xs border border-gray-100/80 flex flex-col justify-between">
+                            <div>
+                                <div class="flex items-center justify-between mb-0.5">
+                                    <h3 class="text-lg font-bold text-bloom-purple-dark">Daily checklist</h3>
+                                    <span id="checklist-badge" class="text-[11px] font-semibold px-2.5 py-0.5 rounded-full bg-bloom-lilac text-bloom-purple-dark">
+                                        0/4
+                                    </span>
+                                </div>
+                                <p class="text-xs text-gray-400 mb-5">Little wins count.</p>
+
+                                <!-- Checklist Items -->
+                                <div id="checklist-items-container" class="flex flex-col gap-3.5 max-h-[210px] overflow-y-auto pr-1">
+                                    <!-- Populated from IndexedDB -->
+                                </div>
+                            </div>
+
+                            <!-- Add Custom Checklist Item -->
+                            <form onsubmit="handleAddChecklistItem(event)" class="mt-5 pt-3 border-t border-gray-100 flex items-center gap-2 no-print">
+                                <input 
+                                    type="text" 
+                                    id="new-checklist-text" 
+                                    placeholder="+ Add a little win..." 
+                                    class="text-xs w-full bg-transparent focus:outline-none text-gray-600 placeholder-gray-400"
+                                >
+                                <button type="submit" class="text-[11px] font-semibold text-bloom-purple-dark hover:bg-bloom-lilac px-2.5 py-1 rounded-lg transition-colors">
+                                    Add
+                                </button>
+                            </form>
+                        </div>
+
+                        <!-- How Are You Feeling? Card -->
+                        <div class="bg-white rounded-3xl p-6 sm:p-7 shadow-xs border border-gray-100/80 flex flex-col justify-between">
+                            <div>
+                                <div class="flex items-center justify-between mb-0.5">
+                                    <h3 class="text-lg font-bold text-bloom-purple-dark">How are you feeling?</h3>
+                                    <span id="mood-status-pill" class="text-[11px] text-gray-400 font-medium">Check-in</span>
+                                </div>
+                                <p class="text-xs text-gray-400 mb-6">Check in with yourself.</p>
+
+                                <!-- 5 Mood Buttons Matching Wireframe -->
+                                <div class="grid grid-cols-5 gap-2.5 mb-7">
+                                    <div class="flex flex-col items-center gap-2">
+                                        <button type="button" onclick="selectMood('Happy')" id="mood-btn-Happy" class="mood-btn w-full aspect-square rounded-2xl bg-bloom-mood-pink flex items-center justify-center text-2xl shadow-2xs">
+                                            😊
+                                        </button>
+                                        <span class="text-[11px] text-gray-500 font-medium">Happy</span>
+                                    </div>
+
+                                    <div class="flex flex-col items-center gap-2">
+                                        <button type="button" onclick="selectMood('Calm')" id="mood-btn-Calm" class="mood-btn w-full aspect-square rounded-2xl bg-bloom-mood-lilac flex items-center justify-center text-2xl shadow-2xs">
+                                            😌
+                                        </button>
+                                        <span class="text-[11px] text-gray-500 font-medium">Calm</span>
+                                    </div>
+
+                                    <div class="flex flex-col items-center gap-2">
+                                        <button type="button" onclick="selectMood('Excited')" id="mood-btn-Excited" class="mood-btn w-full aspect-square rounded-2xl bg-bloom-mood-yellow flex items-center justify-center text-xl text-bloom-purple-dark shadow-2xs">
+                                            ✦
+                                        </button>
+                                        <span class="text-[11px] text-gray-500 font-medium">Excited</span>
+                                    </div>
+
+                                    <div class="flex flex-col items-center gap-2">
+                                        <button type="button" onclick="selectMood('Tired')" id="mood-btn-Tired" class="mood-btn w-full aspect-square rounded-2xl bg-bloom-mood-sky flex items-center justify-center text-xl shadow-2xs">
+                                            ☁️
+                                        </button>
+                                        <span class="text-[11px] text-gray-500 font-medium">Tired</span>
+                                    </div>
+
+                                    <div class="flex flex-col items-center gap-2">
+                                        <button type="button" onclick="selectMood('Sad')" id="mood-btn-Sad" class="mood-btn w-full aspect-square rounded-2xl bg-bloom-mood-mint flex items-center justify-center text-xl text-bloom-purple-dark shadow-2xs">
+                                            ♡
+                                        </button>
+                                        <span class="text-[11px] text-gray-500 font-medium">Sad</span>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Italic Permission Footer -->
+                            <div class="pt-3 border-t border-gray-50 text-center">
+                                <p id="mood-permission-text" class="text-xs sm:text-[13px] font-serif italic text-gray-500">
+                                    Today, I give myself permission to feel.
+                                </p>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Section Footer -->
+                    <p class="text-[11px] tracking-[0.16em] text-center text-gray-500 uppercase pt-1 font-semibold">
+                        Remember: You don't have to do everything. Just take the next step.
+                    </p>
+                </div>
+            </div>
+        </section>
+
+        <!-- =======================================================
+             PAGE 2: HABIT TRACKER ("Small Habits, Big Changes")
+             ======================================================= -->
+        <section id="page-habits" class="page-section page-hidden bg-bloom-bg rounded-[2rem] p-5 sm:p-8 md:p-10 shadow-xs border border-white">
+            
+            <!-- Header Row -->
+            <div class="flex flex-col sm:flex-row sm:items-end justify-between mb-7 gap-4">
+                <div>
+                    <h2 class="text-3xl sm:text-[2.35rem] font-serif font-bold text-bloom-purple-dark mb-1.5">
+                        Small Habits, Big Changes
+                    </h2>
+                    <p class="text-[11px] tracking-[0.15em] text-gray-500 uppercase font-semibold">
+                        Monthly Tracker • Check a circle when you complete a habit
+                    </p>
+                </div>
+
+                <!-- Weekly Progress & Clear Circles -->
+                <div class="flex items-center gap-2.5 self-start sm:self-auto no-print">
+                    <span id="habits-completion-badge" class="text-xs font-semibold px-3.5 py-1.5 rounded-full bg-bloom-lilac text-bloom-purple-dark">
+                        0% Completed
+                    </span>
+                    <button onclick="resetAllHabitCircles()" class="text-xs font-medium px-3 py-1.5 rounded-full bg-white border border-gray-200 text-gray-600 hover:border-bloom-purple hover:text-bloom-purple-dark transition-all">
+                        Clear Circles
+                    </button>
+                </div>
+            </div>
+
+            <div class="grid grid-cols-1 lg:grid-cols-12 gap-7 items-stretch">
+                
+                <!-- Left 7 Columns: MY HABITS Card -->
+                <div class="lg:col-span-7 bg-white rounded-[2rem] p-6 sm:p-8 shadow-xs border border-gray-100/80 flex flex-col justify-between">
+                    <div>
+                        <div class="flex items-center justify-between mb-4">
+                            <h3 class="text-xs font-bold tracking-[0.15em] text-gray-600 uppercase">My Habits</h3>
+                            <span class="text-[11px] text-gray-400 no-print">Click habit name to edit</span>
+                        </div>
+
+                        <div class="overflow-x-auto">
+                            <table class="w-full text-left border-separate border-spacing-y-1.5 min-w-[440px]">
+                                <thead>
+                                    <tr>
+                                        <th class="py-2.5 px-4 text-[11px] font-bold text-gray-500 uppercase tracking-wider w-[42%]">Habit</th>
+                                        <th class="py-2.5 px-1.5 text-center text-[11px] font-bold text-gray-500">1</th>
+                                        <th class="py-2.5 px-1.5 text-center text-[11px] font-bold text-gray-500">2</th>
+                                        <th class="py-2.5 px-1.5 text-center text-[11px] font-bold text-gray-500">3</th>
+                                        <th class="py-2.5 px-1.5 text-center text-[11px] font-bold text-gray-500">4</th>
+                                        <th class="py-2.5 px-1.5 text-center text-[11px] font-bold text-gray-500">5</th>
+                                        <th class="py-2.5 px-1.5 text-center text-[11px] font-bold text-gray-500">6</th>
+                                        <th class="py-2.5 px-1.5 text-center text-[11px] font-bold text-gray-500">7</th>
+                                        <th class="py-2.5 w-6 no-print"></th>
+                                    </tr>
+                                </thead>
+                                <tbody id="habits-table-body">
+                                    <!-- Populated from IndexedDB `habits` store -->
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+
+                    <!-- Add New Habit Form -->
+                    <form onsubmit="handleAddHabit(event)" class="mt-5 pt-3 border-t border-gray-100 flex items-center gap-2 no-print">
+                        <input 
+                            type="text" 
+                            id="new-habit-name" 
+                            placeholder="+ Add a habit to track..." 
+                            class="text-xs w-full bg-transparent focus:outline-none text-gray-600 placeholder-gray-400"
+                        >
+                        <button type="submit" class="text-xs font-semibold bg-bloom-lilac text-bloom-purple-dark hover:bg-bloom-purple hover:text-white px-3.5 py-1.5 rounded-xl transition-colors whitespace-nowrap">
+                            + Add Habit
+                        </button>
+                    </form>
+                </div>
+
+                <!-- Right 5 Columns: Weekly Reflection & A Note to Myself -->
+                <div class="lg:col-span-5 flex flex-col gap-6 justify-between">
+                    
+                    <!-- Weekly Reflection Card -->
+                    <div class="bg-bloom-lavender-row rounded-[2rem] p-7 sm:p-8 shadow-2xs flex-1 flex flex-col justify-center">
+                        <h3 class="text-xs font-bold tracking-[0.14em] text-bloom-purple-dark mb-6 uppercase">
+                            Weekly Reflection
+                        </h3>
+                        
+                        <div class="mb-6">
+                            <label for="ref-proud-1" class="block text-xs font-medium text-bloom-purple-dark mb-1">
+                                One thing I'm proud of:
+                            </label>
+                            <input 
+                                type="text" 
+                                id="ref-proud-1" 
+                                class="input-line text-sm mb-2" 
+                                oninput="debouncedSaveReflections()"
+                            >
+                        </div>
+
+                        <div>
+                            <label for="ref-improve-1" class="block text-xs font-medium text-bloom-purple-dark mb-1">
+                                Something I want to improve:
+                            </label>
+                            <input 
+                                type="text" 
+                                id="ref-improve-1" 
+                                class="input-line text-sm" 
+                                oninput="debouncedSaveReflections()"
+                            >
+                        </div>
+                    </div>
+                    
+                    <!-- A Note to Myself Card -->
+                    <div class="bg-bloom-pink rounded-[2rem] p-7 sm:p-8 shadow-2xs flex-1 flex flex-col justify-center">
+                        <h3 class="text-xs font-bold tracking-[0.14em] text-bloom-purple-dark mb-4 uppercase">
+                            A Note to Myself
+                        </h3>
+                        <p class="text-lg sm:text-xl font-serif italic text-bloom-purple-dark leading-relaxed mb-6">
+                            “I am allowed to grow slowly.<br>Every small effort matters.”
+                        </p>
+                        
+                        <div>
+                            <label for="ref-affirmation-1" class="block text-sm font-serif italic text-bloom-purple-dark mb-1.5">
+                                My own affirmation:
+                            </label>
+                            <input 
+                                type="text" 
+                                id="ref-affirmation-1" 
+                                class="input-line text-sm font-serif italic" 
+                                oninput="debouncedSaveReflections()"
+                            >
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <p class="text-[11px] tracking-[0.16em] text-center text-gray-500 uppercase mt-8 font-semibold">
+                Consistency is built one day at a time. Keep going ♡
+            </p>
+        </section>
+
+        <!-- =======================================================
+             PAGE 3: MONTHLY CALENDAR ("Your Month, Your Pace")
+             ======================================================= -->
+        <section id="page-calendar" class="page-section page-hidden bg-bloom-bg rounded-[2rem] p-5 sm:p-8 md:p-10 shadow-xs border border-white">
+            
+            <!-- Header Row -->
+            <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-6 gap-4">
+                <div>
+                    <h2 class="text-3xl sm:text-[2.35rem] font-serif font-bold text-bloom-purple-dark mb-1.5">
+                        Your Month, Your Pace
+                    </h2>
+                    <p class="text-[11px] tracking-[0.15em] text-gray-500 uppercase font-semibold">
+                        Monthly Motivation Calendar • Edit the month, dates, and daily notes
+                    </p>
+                </div>
+
+                <!-- Right Side Controls: Preset Alignment, Reset Button & MONTH Pill Box -->
+                <div class="flex flex-wrap items-center gap-2.5 self-stretch sm:self-auto justify-end">
+                    <button 
+                        type="button" 
+                        onclick="resetCalendarToWireframe()" 
+                        class="no-print text-xs font-semibold px-3 py-2 rounded-xl bg-white border border-gray-200 text-bloom-purple-dark hover:border-bloom-purple transition-all shadow-2xs"
+                        title="Restore default 1-31 wireframe calendar"
+                    >
+                        ↺ Reset Calendar to Wireframe
+                    </button>
+
+                    <!-- Quick Layout Alignment Selector -->
+                    <div class="no-print flex items-center bg-white border border-gray-200 rounded-xl px-2.5 py-1.5 shadow-2xs">
+                        <label for="calendar-preset-select" class="text-[10px] font-bold uppercase tracking-wider text-gray-400 mr-1.5">Layout:</label>
+                        <select id="calendar-preset-select" onchange="applyCalendarLayoutPreset(this.value)" class="text-xs font-semibold text-bloom-purple-dark bg-transparent focus:outline-none cursor-pointer">
+                            <option value="wireframe">Wireframe (1–31 on Mon)</option>
+                            <option value="real-nov-2026">Nov 2026 (Real Dates)</option>
+                            <option value="real-dec-2026">Dec 2026 (Real Dates)</option>
+                            <option value="real-jan-2027">Jan 2027 (Real Dates)</option>
+                        </select>
+                    </div>
+
+                    <!-- Exact Wireframe Rounded Purple Pill Box bg-[#B79BC8] -->
+                    <div class="bg-[#B79BC8] rounded-2xl px-6 py-3 text-white flex items-center shadow-xs justify-between min-w-[215px]">
+                        <label for="calendar-month-input" class="text-xs font-bold uppercase tracking-[0.14em] mr-2 whitespace-nowrap">
+                            MONTH:
+                        </label>
+                        <input 
+                            type="text" 
+                            id="calendar-month-input" 
+                            class="bg-transparent border-b border-white/85 w-32 text-xs sm:text-sm font-semibold text-white focus:outline-none focus:border-white text-center placeholder-white/60 pb-0.5" 
+                            placeholder=""
+                            oninput="debouncedSaveMonthMeta()"
+                        >
+                    </div>
+                </div>
+            </div>
+
+            <!-- Calendar Grid -->
+            <div class="w-full overflow-x-auto pb-2">
+                <div class="min-w-[820px]">
+                    <!-- MON - SUN Individual Rounded Pill Headers in #B79BC8 -->
+                    <div class="grid grid-cols-7 gap-2.5 mb-2.5">
+                        <div class="bg-[#B79BC8] text-white text-center py-2.5 rounded-t-xl rounded-b-md text-xs font-bold uppercase tracking-[0.14em]">Mon</div>
+                        <div class="bg-[#B79BC8] text-white text-center py-2.5 rounded-t-xl rounded-b-md text-xs font-bold uppercase tracking-[0.14em]">Tue</div>
+                        <div class="bg-[#B79BC8] text-white text-center py-2.5 rounded-t-xl rounded-b-md text-xs font-bold uppercase tracking-[0.14em]">Wed</div>
+                        <div class="bg-[#B79BC8] text-white text-center py-2.5 rounded-t-xl rounded-b-md text-xs font-bold uppercase tracking-[0.14em]">Thu</div>
+                        <div class="bg-[#B79BC8] text-white text-center py-2.5 rounded-t-xl rounded-b-md text-xs font-bold uppercase tracking-[0.14em]">Fri</div>
+                        <div class="bg-[#B79BC8] text-white text-center py-2.5 rounded-t-xl rounded-b-md text-xs font-bold uppercase tracking-[0.14em]">Sat</div>
+                        <div class="bg-[#B79BC8] text-white text-center py-2.5 rounded-t-xl rounded-b-md text-xs font-bold uppercase tracking-[0.14em]">Sun</div>
+                    </div>
+
+                    <!-- 35-Cell Grid (5 rows x 7 columns) -->
+                    <div id="calendar-grid-container" class="grid grid-cols-7 gap-2.5">
+                        <!-- Populated immediately on load & synced with IndexedDB `calendar_days` store -->
+                    </div>
+                </div>
+            </div>
+
+            <!-- Exact Wireframe Legend Footer -->
+            <div class="flex flex-wrap justify-center items-center gap-2.5 sm:gap-3.5 text-[11px] text-gray-600 font-semibold uppercase tracking-[0.12em] mt-6 pt-2">
+                <span class="flex items-center gap-1">✿ DAILY QUOTE</span>
+                <span>•</span>
+                <span class="flex items-center gap-1">○ HABIT COMPLETED</span>
+                <span>•</span>
+                <span class="flex items-center gap-1">♡ MOOD CHECK-IN</span>
+                <span class="mx-1.5 text-gray-400 font-normal">|</span>
+                <span class="normal-case tracking-normal font-medium text-gray-600">Add your own phrase to any day.</span>
+            </div>
+        </section>
+
+    </main>
+
+    <!-- =======================================================
+         MODAL 1: CALENDAR DAY EDITOR (SAVES TO INDEXEDDB)
+         ======================================================= -->
+    <div id="day-modal" class="fixed inset-0 z-50 bg-bloom-purple-dark/40 backdrop-blur-xs hidden items-center justify-center p-4 no-print">
+        <div class="bg-white rounded-3xl max-w-md w-full p-6 sm:p-8 shadow-xl border border-bloom-lilac">
+            <div class="flex items-center justify-between mb-4">
+                <div class="flex items-center gap-2.5">
+                    <span id="modal-day-number" class="w-8 h-8 rounded-xl bg-bloom-lilac text-bloom-purple-dark font-bold text-sm flex items-center justify-center">
+                        1
+                    </span>
+                    <div>
+                        <h3 class="font-serif font-bold text-lg text-bloom-purple-dark leading-tight">Edit Calendar Cell</h3>
+                        <p id="modal-col-label" class="text-[11px] text-gray-400">Edit date number, daily phrase, or notes</p>
+                    </div>
+                </div>
+                <button onclick="closeDayModal()" class="text-gray-400 hover:text-gray-600 text-lg leading-none p-1">✕</button>
+            </div>
+
+            <div class="space-y-4">
+                <div class="grid grid-cols-3 gap-3">
+                    <div class="col-span-1">
+                        <label class="block text-xs font-bold uppercase tracking-wider text-gray-500 mb-1.5">
+                            Date Number
+                        </label>
+                        <input 
+                            type="text" 
+                            id="modal-date-input" 
+                            class="w-full rounded-xl border border-gray-200 px-3 py-2.5 text-sm font-bold text-bloom-purple-dark text-center focus:outline-none focus:border-bloom-purple-dark"
+                            placeholder="1-31"
+                        >
+                    </div>
+                    <div class="col-span-2">
+                        <label class="block text-xs font-bold uppercase tracking-wider text-gray-500 mb-1.5">
+                            Daily Phrase / Motivation
+                        </label>
+                        <input 
+                            type="text" 
+                            id="modal-phrase-input" 
+                            class="w-full rounded-xl border border-gray-200 px-3.5 py-2.5 text-sm focus:outline-none focus:border-bloom-purple-dark"
+                            placeholder="Write a gentle phrase..."
+                        >
+                    </div>
+                </div>
+
+                <!-- Card Pastel Color Selector -->
+                <div>
+                    <div class="flex items-center justify-between mb-2">
+                        <label class="block text-xs font-bold uppercase tracking-wider text-gray-500">
+                            Card Pastel Color
+                        </label>
+                        <button type="button" onclick="resetModalCellToColumnColor()" class="text-[11px] text-bloom-purple hover:underline font-medium">
+                            Reset to Column Color
+                        </button>
+                    </div>
+                    <div class="flex items-center gap-2.5">
+                        <button type="button" onclick="selectModalColor('cell-white')" id="color-opt-cell-white" class="w-8 h-8 rounded-xl border border-gray-200 cell-white" title="Cool Soft Gray/White (#F5F5F8)"></button>
+                        <button type="button" onclick="selectModalColor('cell-lilac')" id="color-opt-cell-lilac" class="w-8 h-8 rounded-xl border border-gray-200 cell-lilac" title="Soft Lavender (#EAE2F3)"></button>
+                        <button type="button" onclick="selectModalColor('cell-pink')" id="color-opt-cell-pink" class="w-8 h-8 rounded-xl border border-gray-200 cell-pink" title="Soft Blush Pink (#F6DCE4)"></button>
+                        <button type="button" onclick="selectModalColor('cell-mint')" id="color-opt-cell-mint" class="w-8 h-8 rounded-xl border border-gray-200 cell-mint" title="Soft Mint (#DCF0E5)"></button>
+                        <button type="button" onclick="selectModalColor('cell-yellow')" id="color-opt-cell-yellow" class="w-8 h-8 rounded-xl border border-gray-200 cell-yellow" title="Soft Butter Yellow (#F8E8C8)"></button>
+                    </div>
+                </div>
+
+                <!-- Status Icons Toggle -->
+                <div>
+                    <label class="block text-xs font-bold uppercase tracking-wider text-gray-500 mb-2">
+                        Completion Badges
+                    </label>
+                    <div class="grid grid-cols-3 gap-2">
+                        <button type="button" onclick="toggleModalBadge('hasQuoteBadge')" id="badge-btn-hasQuoteBadge" class="py-2 px-3 rounded-xl border text-xs font-semibold flex items-center justify-center gap-1.5 transition-all">
+                            <span>✿</span> Quote
+                        </button>
+                        <button type="button" onclick="toggleModalBadge('hasHabitBadge')" id="badge-btn-hasHabitBadge" class="py-2 px-3 rounded-xl border text-xs font-semibold flex items-center justify-center gap-1.5 transition-all">
+                            <span>○</span> Habit
+                        </button>
+                        <button type="button" onclick="toggleModalBadge('hasMoodBadge')" id="badge-btn-hasMoodBadge" class="py-2 px-3 rounded-xl border text-xs font-semibold flex items-center justify-center gap-1.5 transition-all">
+                            <span>♡</span> Mood
+                        </button>
+                    </div>
+                </div>
+
+                <div>
+                    <label class="block text-xs font-bold uppercase tracking-wider text-gray-500 mb-1.5">
+                        Personal Note / Journal
+                    </label>
+                    <textarea 
+                        id="modal-note-input" 
+                        rows="2" 
+                        class="w-full rounded-xl border border-gray-200 px-3.5 py-2 text-xs focus:outline-none focus:border-bloom-purple-dark"
+                        placeholder="Optional reflection or note..."
+                    ></textarea>
+                </div>
+            </div>
+
+            <div class="flex items-center justify-end gap-2.5 mt-6 pt-4 border-t border-gray-100">
+                <button onclick="closeDayModal()" class="px-4 py-2 rounded-xl text-xs font-semibold text-gray-500 hover:bg-gray-100 transition-colors">
+                    Cancel
+                </button>
+                <button onclick="saveDayModalToDB()" class="px-5 py-2 rounded-xl text-xs font-semibold bg-bloom-purple-dark text-white hover:opacity-95 transition-opacity shadow-xs">
+                    Save to IndexedDB
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- =======================================================
+         MODAL 2: "TODAY IS A FRESH START" CONFIRMATION
+         ======================================================= -->
+    <div id="fresh-start-modal" class="fixed inset-0 z-50 bg-bloom-purple-dark/40 backdrop-blur-xs hidden items-center justify-center p-4 no-print">
+        <div class="bg-white rounded-3xl max-w-sm w-full p-6 sm:p-7 text-center shadow-xl border border-bloom-lilac">
+            <div class="w-12 h-12 rounded-2xl bg-bloom-lilac text-bloom-purple-dark flex items-center justify-center text-2xl mx-auto mb-3">
+                ✿
+            </div>
+            <h3 class="font-serif font-bold text-xl text-bloom-purple-dark mb-2">Today is a Fresh Start</h3>
+            <p class="text-xs text-gray-500 leading-relaxed mb-6">
+                Reset today's small goal, uncheck your daily checklist wins, clear today's mood check-in, and draw a new motivational quote in IndexedDB?
+            </p>
+            <div class="flex items-center justify-center gap-3">
+                <button onclick="closeFreshStartModal()" class="px-4 py-2.5 rounded-xl text-xs font-semibold text-gray-500 hover:bg-gray-100 transition-colors w-1/2">
+                    Cancel
+                </button>
+                <button onclick="confirmFreshStartReset()" class="px-4 py-2.5 rounded-xl text-xs font-semibold bg-bloom-purple-dark text-white hover:opacity-95 transition-opacity shadow-xs w-1/2">
+                    Start Fresh ✨
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- =======================================================
+         MODAL 3: INDEXEDDB DATABASE INSPECTOR & BACKUP MANAGER
+         ======================================================= -->
+    <div id="db-modal" class="fixed inset-0 z-50 bg-bloom-purple-dark/40 backdrop-blur-xs hidden items-center justify-center p-4 no-print">
+        <div class="bg-white rounded-3xl max-w-lg w-full p-6 sm:p-8 shadow-xl border border-bloom-lilac">
+            <div class="flex items-center justify-between mb-4">
+                <div class="flex items-center gap-2.5">
+                    <span class="w-9 h-9 rounded-xl bg-bloom-lilac text-bloom-purple-dark flex items-center justify-center text-lg">🗄️</span>
+                    <div>
+                        <h3 class="font-serif font-bold text-lg text-bloom-purple-dark">IndexedDB Storage Engine</h3>
+                        <p class="text-[11px] text-gray-500">Database: <code class="font-mono text-bloom-purple-dark font-semibold">BloomDailyDB_v3 (v1)</code></p>
+                    </div>
+                </div>
+                <button onclick="closeDbModal()" class="text-gray-400 hover:text-gray-600 text-lg leading-none p-1">✕</button>
+            </div>
+
+            <!-- Live Object Store Record Counts -->
+            <div class="bg-bloom-bg rounded-2xl p-4 mb-5 border border-gray-100">
+                <h4 class="text-[11px] font-bold uppercase tracking-wider text-gray-500 mb-3">Object Stores Status</h4>
+                <div class="grid grid-cols-2 gap-2.5 text-xs">
+                    <div class="bg-white p-3 rounded-xl border border-gray-100 flex justify-between items-center">
+                        <span class="font-medium text-gray-600">daily_space</span>
+                        <span id="stat-daily" class="font-bold text-bloom-purple-dark bg-bloom-lilac px-2 py-0.5 rounded-full text-[11px]">1 record</span>
+                    </div>
+                    <div class="bg-white p-3 rounded-xl border border-gray-100 flex justify-between items-center">
+                        <span class="font-medium text-gray-600">habits</span>
+                        <span id="stat-habits" class="font-bold text-bloom-purple-dark bg-bloom-lilac px-2 py-0.5 rounded-full text-[11px]">6 rows</span>
+                    </div>
+                    <div class="bg-white p-3 rounded-xl border border-gray-100 flex justify-between items-center">
+                        <span class="font-medium text-gray-600">reflections</span>
+                        <span id="stat-reflections" class="font-bold text-bloom-purple-dark bg-bloom-lilac px-2 py-0.5 rounded-full text-[11px]">1 record</span>
+                    </div>
+                    <div class="bg-white p-3 rounded-xl border border-gray-100 flex justify-between items-center">
+                        <span class="font-medium text-gray-600">calendar_days</span>
+                        <span id="stat-calendar" class="font-bold text-bloom-purple-dark bg-bloom-lilac px-2 py-0.5 rounded-full text-[11px]">35 cells</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Backup & Restore Actions -->
+            <div class="space-y-3">
+                <div class="flex flex-col sm:flex-row gap-2.5">
+                    <button onclick="exportIndexedDBToJson()" class="flex-1 py-2.5 px-4 rounded-xl bg-bloom-purple-dark text-white text-xs font-semibold hover:opacity-95 transition-opacity flex items-center justify-center gap-2">
+                        <span>⬇️</span> Export IndexedDB (JSON)
+                    </button>
+                    <label class="flex-1 py-2.5 px-4 rounded-xl bg-bloom-lilac text-bloom-purple-dark text-xs font-semibold hover:bg-bloom-purple hover:text-white transition-colors flex items-center justify-center gap-2 cursor-pointer text-center">
+                        <span>⬆️</span> Import Backup (JSON)
+                        <input type="file" accept=".json" class="hidden" onchange="importJsonToIndexedDB(event)">
+                    </label>
+                </div>
+
+                <div class="pt-3 border-t border-gray-100 flex items-center justify-between">
+                    <span class="text-[11px] text-gray-400">Restore original wireframe defaults?</span>
+                    <button onclick="factoryResetIndexedDB()" class="text-xs font-semibold text-rose-600 hover:bg-rose-50 px-3 py-1.5 rounded-xl transition-colors">
+                        Reset All IndexedDB Data
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- TOAST NOTIFICATION -->
+    <div id="toast" class="fixed bottom-5 right-5 z-50 bg-bloom-purple-dark text-white text-xs font-medium px-4 py-2.5 rounded-2xl shadow-lg transform translate-y-16 opacity-0 transition-all duration-300 pointer-events-none flex items-center gap-2 no-print">
+        <span class="text-emerald-400">✓</span>
+        <span id="toast-message">Saved to IndexedDB ✓</span>
+    </div>
+
+    <!-- =======================================================
+         INDEXEDDB ENGINE & APPLICATION CONTROLLER
+         ======================================================= -->
+    <script>
+        // --- CURATED GENTLE MOTIVATION QUOTES (25+) ---
+        const MOTIVATION_QUOTES = [
+            "Small steps still move you forward.",
+            "You don't have to rush to be on your way.",
+            "Rest is a part of growth, not the opposite of it.",
+            "Be proud of how quietly you keep trying.",
+            "Gentle progress is still real progress.",
+            "You are allowed to take up space and take your time.",
+            "One mindful breath can reset your whole afternoon.",
+            "Your worth is not measured by your productivity.",
+            "Bloom at your own pace; every season has a purpose.",
+            "Consistency is built from kindness, not perfection.",
+            "Even the smallest win deserves recognition today.",
+            "Give yourself the same grace you freely offer others.",
+            "You are learning, growing, and becoming every day.",
+            "It is okay to pause and simply exist for a moment.",
+            "Focus on what you can gently nurture right now.",
+            "Little by little, a little becomes a lot.",
+            "Today is a brand new page. Write softly.",
+            "Trust the quiet work you are doing behind the scenes.",
+            "Peace begins when you stop expecting perfection.",
+            "Celebrate showing up, even on low-energy days.",
+            "You are doing better than your inner critic says.",
+            "Softness is a strength, never a weakness.",
+            "Start where you are with what you have today.",
+            "Every small effort compounds into lasting change.",
+            "Breathe deeply—you don't have to figure it all out today."
+        ];
+
+        const MOOD_AFFIRMATIONS = {
+            Happy: "Today, I savor this warmth and let joy fill my space.",
+            Calm: "Today, I honor this peaceful rhythm and breathe deeply.",
+            Excited: "Today, I channel my bright energy into meaningful little steps.",
+            Tired: "Today, I give myself permission to rest without guilt.",
+            Sad: "Today, I hold myself gently and allow my heart to feel."
+        };
+
+        // --- WIREFRAME DEFAULT DATA ---
+        const DEFAULT_DAILY_SPACE = {
+            id: 'current',
+            dateStr: '',
+            quote: 'Small steps still move you forward.',
+            goalLine1: '',
+            goalLine2: '',
+            mood: null,
+            checklist: [
+                { id: 'c1', text: 'Drink enough water', completed: false },
+                { id: 'c2', text: 'Move your body', completed: false },
+                { id: 'c3', text: 'Take a mindful break', completed: false },
+                { id: 'c4', text: 'Be kind to yourself', completed: false }
+            ]
+        };
+
+        const DEFAULT_HABITS = [
+            { id: 'h1', name: 'Drink water', days: [false, false, false, false, false, false, false], order: 1 },
+            { id: 'h2', name: 'Read 10 minutes', days: [false, false, false, false, false, false, false], order: 2 },
+            { id: 'h3', name: 'Move my body', days: [false, false, false, false, false, false, false], order: 3 },
+            { id: 'h4', name: 'Sleep on time', days: [false, false, false, false, false, false, false], order: 4 },
+            { id: 'h5', name: 'Practice gratitude', days: [false, false, false, false, false, false, false], order: 5 },
+            { id: 'h6', name: 'Take a screen break', days: [false, false, false, false, false, false, false], order: 6 }
+        ];
+
+        const DEFAULT_REFLECTIONS = {
+            id: 'weekly',
+            proudOf1: '',
+            improve1: '',
+            affirmation1: '',
+            monthName: ''
+        };
+
+        // Exact 31 Days + 4 trailing cells matching the wireframe layout & pastel colors
+        const WIREFRAME_31_PHRASES = [
+            "Start where you are.",
+            "Progress, not perfection.",
+            "One thing at a time.",
+            "You are capable.",
+            "Rest is productive.",
+            "Celebrate small wins.",
+            "Keep showing up.",
+            "Choose kindness.",
+            "Your pace is valid.",
+            "You can begin again.",
+            "Make room for joy.",
+            "Trust your growth.",
+            "Breathe and reset.",
+            "You are learning.",
+            "Little by little.",
+            "Focus on what you can do.",
+            "Give yourself grace.",
+            "Keep your promise to you.",
+            "Take a brave step.",
+            "Notice the good.",
+            "You are enough.",
+            "Pause without guilt.",
+            "Make today meaningful.",
+            "Believe in your effort.",
+            "Protect your peace.",
+            "Be proud of trying.",
+            "Growth takes time.",
+            "Try again tomorrow.",
+            "You are becoming.",
+            "Small steps matter.",
+            "You made it through."
+        ];
+
+        const COLUMN_COLOR_PATTERN = [
+            'cell-white',  // 0: Mon
+            'cell-lilac',  // 1: Tue
+            'cell-pink',   // 2: Wed
+            'cell-mint',   // 3: Thu
+            'cell-white',  // 4: Fri
+            'cell-yellow', // 5: Sat
+            'cell-lilac'   // 6: Sun
+        ];
+
+        const WEEKDAY_NAMES = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
+
+        function buildDefaultCalendarDays(startIndex, totalDays) {
+            const cells = [];
+            // Leading empty padding cells before Day 1 if any
+            for (let i = 0; i < startIndex; i++) {
+                cells.push({
+                    cellIndex: cells.length,
+                    day: '',
+                    phrase: '',
+                    note: '',
+                    hasQuoteBadge: false,
+                    hasHabitBadge: false,
+                    hasMoodBadge: false,
+                    colorClass: COLUMN_COLOR_PATTERN[cells.length % 7]
+                });
+            }
+
+            // Actual days 1 to totalDays
+            for (let d = 1; d <= totalDays; d++) {
+                const phrase = WIREFRAME_31_PHRASES[d - 1] || '';
+                cells.push({
+                    cellIndex: cells.length,
+                    day: String(d),
+                    phrase: phrase,
+                    note: '',
+                    hasQuoteBadge: Boolean(phrase),
+                    hasHabitBadge: d % 2 === 0,
+                    hasMoodBadge: d % 5 === 0,
+                    colorClass: COLUMN_COLOR_PATTERN[cells.length % 7]
+                });
+            }
+
+            // Trailing empty pastel cells to fill out 35 cells total (5 rows x 7 cols)
+            while (cells.length < 35) {
+                cells.push({
+                    cellIndex: cells.length,
+                    day: '',
+                    phrase: '',
+                    note: '',
+                    hasQuoteBadge: false,
+                    hasHabitBadge: false,
+                    hasMoodBadge: false,
+                    colorClass: COLUMN_COLOR_PATTERN[cells.length % 7]
+                });
+            }
+            return cells;
+        }
+
+        const DEFAULT_CALENDAR_CELLS = buildDefaultCalendarDays(0, 31);
+
+        // =======================================================
+        // PROMISE-BASED INDEXEDDB WRAPPER (`BloomDailyDB_v3` v1)
+        // Clean database name avoids any blocked upgrade or keyPath conflict
+        // =======================================================
+        class BloomIndexedDB {
+            constructor(dbName = 'BloomDailyDB_v3', version = 1) {
+                this.dbName = dbName;
+                this.version = version;
+                this.db = null;
+            }
+
+            async open() {
+                if (this.db) return this.db;
+                return new Promise((resolve, reject) => {
+                    let settled = false;
+                    const timeoutId = setTimeout(() => {
+                        if (!settled) {
+                            settled = true;
+                            reject(new Error('IndexedDB open timed out'));
+                        }
+                    }, 2500);
+
+                    const request = indexedDB.open(this.dbName, this.version);
+
+                    request.onupgradeneeded = (event) => {
+                        const db = event.target.result;
+                        if (!db.objectStoreNames.contains('daily_space')) {
+                            db.createObjectStore('daily_space', { keyPath: 'id' });
+                        }
+                        if (!db.objectStoreNames.contains('habits')) {
+                            db.createObjectStore('habits', { keyPath: 'id' });
+                        }
+                        if (!db.objectStoreNames.contains('reflections')) {
+                            db.createObjectStore('reflections', { keyPath: 'id' });
+                        }
+                        if (!db.objectStoreNames.contains('calendar_days')) {
+                            db.createObjectStore('calendar_days', { keyPath: 'cellIndex' });
+                        }
+                    };
+
+                    request.onsuccess = (event) => {
+                        if (!settled) {
+                            settled = true;
+                            clearTimeout(timeoutId);
+                            this.db = event.target.result;
+                            resolve(this.db);
+                        }
+                    };
+
+                    request.onerror = (event) => {
+                        if (!settled) {
+                            settled = true;
+                            clearTimeout(timeoutId);
+                            reject(event.target.error);
+                        }
+                    };
+
+                    request.onblocked = () => {
+                        if (!settled) {
+                            settled = true;
+                            clearTimeout(timeoutId);
+                            reject(new Error('IndexedDB connection blocked'));
+                        }
+                    };
+                });
+            }
+
+            async get(storeName, key) {
+                const db = await this.open();
+                return new Promise((resolve, reject) => {
+                    const tx = db.transaction(storeName, 'readonly');
+                    const store = tx.objectStore(storeName);
+                    const req = store.get(key);
+                    req.onsuccess = () => resolve(req.result);
+                    req.onerror = () => reject(req.error);
+                });
+            }
+
+            async getAll(storeName) {
+                const db = await this.open();
+                return new Promise((resolve, reject) => {
+                    const tx = db.transaction(storeName, 'readonly');
+                    const store = tx.objectStore(storeName);
+                    const req = store.getAll();
+                    req.onsuccess = () => resolve(req.result || []);
+                    req.onerror = () => reject(req.error);
+                });
+            }
+
+            async put(storeName, value) {
+                const db = await this.open();
+                return new Promise((resolve, reject) => {
+                    const tx = db.transaction(storeName, 'readwrite');
+                    const store = tx.objectStore(storeName);
+                    const req = store.put(value);
+                    req.onsuccess = () => resolve(req.result);
+                    req.onerror = () => reject(req.error);
+                });
+            }
+
+            async putBulk(storeName, items) {
+                const db = await this.open();
+                return new Promise((resolve, reject) => {
+                    const tx = db.transaction(storeName, 'readwrite');
+                    const store = tx.objectStore(storeName);
+                    items.forEach(item => store.put(item));
+                    tx.oncomplete = () => resolve(true);
+                    tx.onerror = () => reject(tx.error);
+                });
+            }
+
+            async delete(storeName, key) {
+                const db = await this.open();
+                return new Promise((resolve, reject) => {
+                    const tx = db.transaction(storeName, 'readwrite');
+                    const store = tx.objectStore(storeName);
+                    const req = store.delete(key);
+                    req.onsuccess = () => resolve(true);
+                    req.onerror = () => reject(req.error);
+                });
+            }
+
+            async clearStore(storeName) {
+                const db = await this.open();
+                return new Promise((resolve, reject) => {
+                    const tx = db.transaction(storeName, 'readwrite');
+                    const store = tx.objectStore(storeName);
+                    const req = store.clear();
+                    req.onsuccess = () => resolve(true);
+                    req.onerror = () => reject(req.error);
+                });
+            }
+        }
+
+        const bloomDB = new BloomIndexedDB();
+
+        // --- IN-MEMORY STATE INITIALIZED IMMEDIATELY WITH WIREFRAME DEFAULTS ---
+        let appData = {
+            dailySpace: JSON.parse(JSON.stringify(DEFAULT_DAILY_SPACE)),
+            habits: JSON.parse(JSON.stringify(DEFAULT_HABITS)),
+            reflections: JSON.parse(JSON.stringify(DEFAULT_REFLECTIONS)),
+            calendarDays: JSON.parse(JSON.stringify(DEFAULT_CALENDAR_CELLS))
+        };
+
+        let editingCellIndex = null;
+        let modalTempColor = 'cell-white';
+        let modalTempBadges = { hasQuoteBadge: false, hasHabitBadge: false, hasMoodBadge: false };
+
+        // --- INITIALIZE APPLICATION: RENDER IMMEDIATELY, THEN HYDRATE FROM INDEXEDDB ---
+        window.addEventListener('DOMContentLoaded', async () => {
+            // 1. Render default wireframe state immediately so the UI & 35-cell calendar are guaranteed visible
+            renderEntireApp();
+
+            // 2. Hydrate asynchronously from IndexedDB
+            try {
+                await bloomDB.open();
+                await ensureSeededAndLoadData();
+                renderEntireApp();
+                updateDbStatusBadge(true);
+            } catch (err) {
+                console.warn('IndexedDB unavailable, running with in-memory fallback:', err);
+                updateDbStatusBadge(false);
+            }
+        });
+
+        async function ensureSeededAndLoadData() {
+            // 1. Daily Space
+            let daily = await bloomDB.get('daily_space', 'current');
+            if (!daily) {
+                daily = JSON.parse(JSON.stringify(DEFAULT_DAILY_SPACE));
+                await bloomDB.put('daily_space', daily);
+            }
+            appData.dailySpace = daily;
+
+            // 2. Habits
+            let habits = await bloomDB.getAll('habits');
+            if (!habits || habits.length === 0) {
+                habits = JSON.parse(JSON.stringify(DEFAULT_HABITS));
+                await bloomDB.putBulk('habits', habits);
+            }
+            habits.sort((a, b) => (a.order || 0) - (b.order || 0));
+            appData.habits = habits;
+
+            // 3. Reflections & Month Name
+            let reflections = await bloomDB.get('reflections', 'weekly');
+            if (!reflections) {
+                reflections = JSON.parse(JSON.stringify(DEFAULT_REFLECTIONS));
+                await bloomDB.put('reflections', reflections);
+            }
+            appData.reflections = reflections;
+
+            // 4. Calendar Days (35 cells, validated for cellIndex 0..34)
+            let calDays = await bloomDB.getAll('calendar_days');
+            const isValidCalendar = Array.isArray(calDays) && calDays.length === 35 && calDays.every(c => typeof c.cellIndex === 'number');
+            if (!isValidCalendar) {
+                await bloomDB.clearStore('calendar_days');
+                calDays = buildDefaultCalendarDays(0, 31);
+                await bloomDB.putBulk('calendar_days', calDays);
+            }
+            calDays.sort((a, b) => a.cellIndex - b.cellIndex);
+            appData.calendarDays = calDays;
+        }
+
+        function updateDbStatusBadge(connected) {
+            const dot = document.getElementById('db-status-dot');
+            const text = document.getElementById('db-status-text');
+            if (connected) {
+                dot.className = 'w-1.5 h-1.5 rounded-full bg-emerald-500 inline-block';
+                text.textContent = 'IndexedDB Connected';
+            } else {
+                dot.className = 'w-1.5 h-1.5 rounded-full bg-amber-500 inline-block';
+                text.textContent = 'IndexedDB Offline';
+            }
+        }
+
+        function showToast(msg = 'Saved to IndexedDB ✓') {
+            const toast = document.getElementById('toast');
+            const msgEl = document.getElementById('toast-message');
+            msgEl.textContent = msg;
+            toast.classList.remove('translate-y-16', 'opacity-0');
+            clearTimeout(window._bloomToastTimer);
+            window._bloomToastTimer = setTimeout(() => {
+                toast.classList.add('translate-y-16', 'opacity-0');
+            }, 2100);
+        }
+
+        // Helper for debouncing rapid text input saves to IndexedDB
+        function debounce(fn, delay = 380) {
+            let timer;
+            return (...args) => {
+                clearTimeout(timer);
+                timer = setTimeout(() => fn(...args), delay);
+            };
+        }
+
+        // --- TAB NAVIGATION ---
+        function switchTab(tabName) {
+            const sections = {
+                daily: document.getElementById('page-daily'),
+                habits: document.getElementById('page-habits'),
+                calendar: document.getElementById('page-calendar')
+            };
+
+            ['daily', 'habits', 'calendar', 'all'].forEach(t => {
+                const btn = document.getElementById(`tab-${t}`);
+                if (t === tabName) {
+                    btn.className = "nav-tab px-4 py-1.5 rounded-full text-xs font-semibold transition-all whitespace-nowrap bg-bloom-purple-dark text-white shadow-xs";
+                } else {
+                    btn.className = "nav-tab px-4 py-1.5 rounded-full text-xs font-semibold transition-all whitespace-nowrap text-gray-600 hover:text-bloom-purple-dark";
+                }
+            });
+
+            if (tabName === 'all') {
+                Object.values(sections).forEach(s => s.classList.remove('page-hidden'));
+            } else {
+                Object.entries(sections).forEach(([key, sec]) => {
+                    if (key === tabName) sec.classList.remove('page-hidden');
+                    else sec.classList.add('page-hidden');
+                });
+            }
+        }
+
+        function renderEntireApp() {
+            renderDailySpace();
+            renderHabitsPage();
+            renderCalendarPage();
+        }
+
+        // =======================================================
+        // PAGE 1: DAILY SPACE FUNCTIONS & INDEXEDDB PERSISTENCE
+        // =======================================================
+        function renderDailySpace() {
+            const d = appData.dailySpace;
+            document.getElementById('daily-date-input').value = d.dateStr || '';
+            document.getElementById('daily-quote-text').textContent = `“${d.quote}”`;
+            document.getElementById('goal-line-1').value = d.goalLine1 || '';
+            document.getElementById('goal-line-2').value = d.goalLine2 || '';
+
+            renderChecklistItems();
+            renderMoodButtons();
+        }
+
+        const debouncedSaveDailySpace = debounce(async () => {
+            appData.dailySpace.dateStr = document.getElementById('daily-date-input').value;
+            appData.dailySpace.goalLine1 = document.getElementById('goal-line-1').value;
+            appData.dailySpace.goalLine2 = document.getElementById('goal-line-2').value;
+            await bloomDB.put('daily_space', appData.dailySpace);
+            showToast('Saved to IndexedDB ✓');
+        }, 400);
+
+        async function shuffleMotivationQuote() {
+            const quoteEl = document.getElementById('daily-quote-text');
+            quoteEl.style.opacity = '0';
+            quoteEl.style.transform = 'translateY(4px)';
+
+            setTimeout(async () => {
+                const candidates = MOTIVATION_QUOTES.filter(q => q !== appData.dailySpace.quote);
+                const chosen = candidates[Math.floor(Math.random() * candidates.length)];
+                appData.dailySpace.quote = chosen;
+                quoteEl.textContent = `“${chosen}”`;
+                quoteEl.style.opacity = '1';
+                quoteEl.style.transform = 'translateY(0)';
+                await bloomDB.put('daily_space', appData.dailySpace);
+                showToast('New motivation saved to IndexedDB ✓');
+            }, 180);
+        }
+
+        function toggleCustomQuoteEditor() {
+            const box = document.getElementById('custom-quote-editor');
+            const input = document.getElementById('custom-quote-input');
+            box.classList.toggle('hidden');
+            if (!box.classList.contains('hidden')) {
+                input.value = appData.dailySpace.quote;
+                input.focus();
+            }
+        }
+
+        async function saveCustomQuote() {
+            const input = document.getElementById('custom-quote-input');
+            const val = input.value.trim();
+            if (val) {
+                appData.dailySpace.quote = val;
+                document.getElementById('daily-quote-text').textContent = `“${val}”`;
+                await bloomDB.put('daily_space', appData.dailySpace);
+                showToast('Custom quote saved to IndexedDB ✓');
+            }
+            document.getElementById('custom-quote-editor').classList.add('hidden');
+        }
+
+        function renderChecklistItems() {
+            const container = document.getElementById('checklist-items-container');
+            container.innerHTML = '';
+
+            const items = appData.dailySpace.checklist || [];
+            let doneCount = 0;
+
+            items.forEach((item, idx) => {
+                if (item.completed) doneCount++;
+                const row = document.createElement('div');
+                row.className = 'flex items-center justify-between group py-0.5';
+                row.innerHTML = `
+                    <label class="flex items-center gap-3.5 cursor-pointer flex-1">
+                        <input type="checkbox" class="check-square" ${item.completed ? 'checked' : ''} onchange="toggleChecklistItem(${idx})">
+                        <span class="text-sm transition-all ${item.completed ? 'line-through text-gray-400' : 'text-bloom-purple-dark font-medium'}">
+                            ${escapeHtml(item.text)}
+                        </span>
+                    </label>
+                    ${items.length > 1 ? `
+                        <button onclick="removeChecklistItem(${idx})" class="opacity-0 group-hover:opacity-100 text-gray-300 hover:text-rose-400 text-xs px-1.5 transition-opacity no-print" title="Delete">
+                            ✕
+                        </button>
+                    ` : ''}
+                `;
+                container.appendChild(row);
+            });
+
+            document.getElementById('checklist-badge').textContent = `${doneCount}/${items.length}`;
+        }
+
+        async function toggleChecklistItem(idx) {
+            const item = appData.dailySpace.checklist[idx];
+            if (!item) return;
+            item.completed = !item.completed;
+            renderChecklistItems();
+            await bloomDB.put('daily_space', appData.dailySpace);
+            showToast('Checklist saved to IndexedDB ✓');
+        }
+
+        async function handleAddChecklistItem(e) {
+            e.preventDefault();
+            const input = document.getElementById('new-checklist-text');
+            const text = input.value.trim();
+            if (!text) return;
+
+            appData.dailySpace.checklist.push({
+                id: 'c_' + Date.now(),
+                text,
+                completed: false
+            });
+            input.value = '';
+            renderChecklistItems();
+            await bloomDB.put('daily_space', appData.dailySpace);
+            showToast('Added win to IndexedDB ✓');
+        }
+
+        async function removeChecklistItem(idx) {
+            appData.dailySpace.checklist.splice(idx, 1);
+            renderChecklistItems();
+            await bloomDB.put('daily_space', appData.dailySpace);
+            showToast('Updated checklist in IndexedDB ✓');
+        }
+
+        async function selectMood(moodKey) {
+            appData.dailySpace.mood = appData.dailySpace.mood === moodKey ? null : moodKey;
+            renderMoodButtons();
+            await bloomDB.put('daily_space', appData.dailySpace);
+            showToast(appData.dailySpace.mood ? `Mood (${moodKey}) saved to IndexedDB ✓` : 'Mood cleared in IndexedDB ✓');
+        }
+
+        function renderMoodButtons() {
+            const currentMood = appData.dailySpace.mood;
+            ['Happy', 'Calm', 'Excited', 'Tired', 'Sad'].forEach(m => {
+                const btn = document.getElementById(`mood-btn-${m}`);
+                if (btn) {
+                    if (currentMood === m) btn.classList.add('active');
+                    else btn.classList.remove('active');
+                }
+            });
+
+            const statusPill = document.getElementById('mood-status-pill');
+            const footerText = document.getElementById('mood-permission-text');
+
+            if (currentMood) {
+                statusPill.textContent = `Feeling ${currentMood}`;
+                statusPill.className = 'text-[11px] font-semibold px-2.5 py-0.5 rounded-full bg-bloom-lilac text-bloom-purple-dark';
+                footerText.textContent = MOOD_AFFIRMATIONS[currentMood] || 'Today, I give myself permission to feel.';
+            } else {
+                statusPill.textContent = 'Check-in';
+                statusPill.className = 'text-[11px] text-gray-400 font-medium';
+                footerText.textContent = 'Today, I give myself permission to feel.';
+            }
+        }
+
+        // Fresh Start Modal
+        function openFreshStartModal() {
+            const modal = document.getElementById('fresh-start-modal');
+            modal.classList.remove('hidden');
+            modal.classList.add('flex');
+        }
+
+        function closeFreshStartModal() {
+            const modal = document.getElementById('fresh-start-modal');
+            modal.classList.add('hidden');
+            modal.classList.remove('flex');
+        }
+
+        async function confirmFreshStartReset() {
+            const candidates = MOTIVATION_QUOTES.filter(q => q !== appData.dailySpace.quote);
+            appData.dailySpace.quote = candidates[Math.floor(Math.random() * candidates.length)];
+            appData.dailySpace.goalLine1 = '';
+            appData.dailySpace.goalLine2 = '';
+            appData.dailySpace.mood = null;
+            appData.dailySpace.checklist.forEach(item => item.completed = false);
+
+            await bloomDB.put('daily_space', appData.dailySpace);
+            renderDailySpace();
+            closeFreshStartModal();
+            showToast('Fresh start saved to IndexedDB ✨');
+        }
+
+        // =======================================================
+        // PAGE 2: HABIT TRACKER & REFLECTIONS (INDEXEDDB)
+        // =======================================================
+        function renderHabitsPage() {
+            const tbody = document.getElementById('habits-table-body');
+            tbody.innerHTML = '';
+
+            let completedCircles = 0;
+            const totalCircles = appData.habits.length * 7;
+
+            appData.habits.forEach((habit, hIdx) => {
+                const isLavenderRow = hIdx % 2 === 0;
+                const tr = document.createElement('tr');
+                tr.className = isLavenderRow ? 'bg-bloom-lavender-row rounded-xl' : 'bg-white';
+
+                let circlesHtml = '';
+                habit.days.forEach((isChecked, dIdx) => {
+                    if (isChecked) completedCircles++;
+                    circlesHtml += `
+                        <td class="py-3.5 px-1.5 text-center">
+                            <input 
+                                type="checkbox" 
+                                class="check-circle" 
+                                ${isChecked ? 'checked' : ''} 
+                                onchange="toggleHabitCircle('${habit.id}', ${dIdx})"
+                            >
+                        </td>
+                    `;
+                });
+
+                tr.innerHTML = `
+                    <td class="py-3.5 px-4 text-xs sm:text-sm font-medium text-bloom-purple-dark rounded-l-2xl">
+                        <input 
+                            type="text" 
+                            value="${escapeHtml(habit.name)}" 
+                            onchange="renameHabitInDB('${habit.id}', this.value)"
+                            class="bg-transparent w-full focus:outline-none focus:border-b focus:border-bloom-purple-dark"
+                        >
+                    </td>
+                    ${circlesHtml}
+                    <td class="py-3.5 pr-3 text-center rounded-r-2xl no-print">
+                        ${appData.habits.length > 1 ? `
+                            <button onclick="deleteHabitFromDB('${habit.id}')" class="text-gray-300 hover:text-rose-400 text-xs transition-colors" title="Delete habit">✕</button>
+                        ` : ''}
+                    </td>
+                `;
+                tbody.appendChild(tr);
+            });
+
+            const pct = totalCircles > 0 ? Math.round((completedCircles / totalCircles) * 100) : 0;
+            document.getElementById('habits-completion-badge').textContent = `${pct}% Completed (${completedCircles}/${totalCircles})`;
+
+            // Render Reflections
+            const r = appData.reflections;
+            document.getElementById('ref-proud-1').value = r.proudOf1 || '';
+            document.getElementById('ref-improve-1').value = r.improve1 || '';
+            document.getElementById('ref-affirmation-1').value = r.affirmation1 || '';
+        }
+
+        async function toggleHabitCircle(habitId, dayIndex) {
+            const habit = appData.habits.find(h => h.id === habitId);
+            if (!habit) return;
+            habit.days[dayIndex] = !habit.days[dayIndex];
+            renderHabitsPage();
+            await bloomDB.put('habits', habit);
+            showToast('Habit circle saved to IndexedDB ✓');
+        }
+
+        async function renameHabitInDB(habitId, newName) {
+            const trimmed = newName.trim();
+            const habit = appData.habits.find(h => h.id === habitId);
+            if (!habit || !trimmed) return;
+            habit.name = trimmed;
+            await bloomDB.put('habits', habit);
+            showToast('Habit name updated in IndexedDB ✓');
+        }
+
+        async function handleAddHabit(e) {
+            e.preventDefault();
+            const input = document.getElementById('new-habit-name');
+            const name = input.value.trim();
+            if (!name) return;
+
+            const newHabit = {
+                id: 'h_' + Date.now(),
+                name,
+                days: [false, false, false, false, false, false, false],
+                order: appData.habits.length + 1
+            };
+
+            appData.habits.push(newHabit);
+            input.value = '';
+            renderHabitsPage();
+            await bloomDB.put('habits', newHabit);
+            showToast('New habit stored in IndexedDB ✓');
+        }
+
+        async function deleteHabitFromDB(habitId) {
+            appData.habits = appData.habits.filter(h => h.id !== habitId);
+            renderHabitsPage();
+            await bloomDB.delete('habits', habitId);
+            showToast('Habit removed from IndexedDB ✓');
+        }
+
+        async function resetAllHabitCircles() {
+            appData.habits.forEach(h => {
+                h.days = [false, false, false, false, false, false, false];
+            });
+            renderHabitsPage();
+            await bloomDB.putBulk('habits', appData.habits);
+            showToast('Habit circles cleared in IndexedDB ✓');
+        }
+
+        const debouncedSaveReflections = debounce(async () => {
+            appData.reflections.proudOf1 = document.getElementById('ref-proud-1').value;
+            appData.reflections.improve1 = document.getElementById('ref-improve-1').value;
+            appData.reflections.affirmation1 = document.getElementById('ref-affirmation-1').value;
+            await bloomDB.put('reflections', appData.reflections);
+            showToast('Reflection saved to IndexedDB ✓');
+        }, 400);
+
+        // =======================================================
+        // PAGE 3: MONTHLY CALENDAR (INDEXEDDB `calendar_days`)
+        // =======================================================
+        function renderCalendarPage() {
+            const reflectionsObj = appData.reflections || DEFAULT_REFLECTIONS;
+            const monthInput = document.getElementById('calendar-month-input');
+            if (monthInput) {
+                monthInput.value = reflectionsObj.monthName || '';
+            }
+
+            const grid = document.getElementById('calendar-grid-container');
+            if (!grid) return;
+            grid.innerHTML = '';
+
+            // Guarantee 35 cells even if state is ever partial
+            const cellsToRender = (Array.isArray(appData.calendarDays) && appData.calendarDays.length === 35)
+                ? appData.calendarDays
+                : buildDefaultCalendarDays(0, 31);
+
+            cellsToRender.forEach((cell, idx) => {
+                const cellIndex = typeof cell.cellIndex === 'number' ? cell.cellIndex : idx;
+                const div = document.createElement('div');
+                const colColor = cell.colorClass || COLUMN_COLOR_PATTERN[cellIndex % 7];
+                div.className = `calendar-cell ${colColor}`;
+                div.onclick = () => openDayModal(cellIndex);
+
+                const badges = [];
+                if (cell.hasQuoteBadge) badges.push('✿');
+                if (cell.hasHabitBadge) badges.push('○');
+                if (cell.hasMoodBadge) badges.push('♡');
+
+                const hasDayNum = cell.day !== null && cell.day !== undefined && String(cell.day).trim() !== '';
+                const hasPhrase = cell.phrase && String(cell.phrase).trim().length > 0;
+
+                div.innerHTML = `
+                    ${hasDayNum ? `<span class="absolute top-2.5 left-3 font-bold text-[12px] text-[#332B3A] leading-none">${escapeHtml(String(cell.day))}</span>` : ''}
+                    ${badges.length > 0 ? `<div class="absolute top-2.5 right-2.5 flex items-center gap-1 text-[11px] text-[#332B3A] font-bold leading-none">${badges.join(' ')}</div>` : ''}
+                    ${hasPhrase ? `
+                        <div class="w-full px-1 flex flex-col items-center justify-center my-auto">
+                            <p class="text-[11px] font-medium text-gray-700 text-center leading-snug line-clamp-2">
+                                ${escapeHtml(cell.phrase)}
+                            </p>
+                            <div class="border-b border-gray-400/35 w-4/5 mx-auto mt-1.5"></div>
+                        </div>
+                    ` : `
+                        <div class="w-full px-1 my-auto"></div>
+                    `}
+                    ${cell.note ? `<span class="mt-1 text-[10px] text-gray-500 italic truncate max-w-[90%]">${escapeHtml(cell.note)}</span>` : ''}
+                `;
+                grid.appendChild(div);
+            });
+        }
+
+        async function resetCalendarToWireframe() {
+            const presetSelect = document.getElementById('calendar-preset-select');
+            if (presetSelect) presetSelect.value = 'wireframe';
+            await applyCalendarLayoutPreset('wireframe');
+        }
+
+        async function applyCalendarLayoutPreset(presetValue) {
+            let newCells = [];
+            if (presetValue === 'wireframe') {
+                // Exact wireframe: Days 1-31 starting on Monday (index 0), trailing 4 blank pastel cells
+                newCells = buildDefaultCalendarDays(0, 31);
+                appData.reflections.monthName = '';
+            } else if (presetValue === 'real-nov-2026') {
+                // Nov 1, 2026 is Sunday (Mon-based index 6), 30 days
+                newCells = buildDefaultCalendarDays(6, 30);
+                appData.reflections.monthName = 'November 2026';
+            } else if (presetValue === 'real-dec-2026') {
+                // Dec 1, 2026 is Tuesday (Mon-based index 1), 31 days
+                newCells = buildDefaultCalendarDays(1, 31);
+                appData.reflections.monthName = 'December 2026';
+            } else if (presetValue === 'real-jan-2027') {
+                // Jan 1, 2027 is Friday (Mon-based index 4), 31 days
+                newCells = buildDefaultCalendarDays(4, 31);
+                appData.reflections.monthName = 'January 2027';
+            }
+
+            if (newCells.length === 35) {
+                appData.calendarDays = newCells;
+                renderCalendarPage();
+                try {
+                    await bloomDB.clearStore('calendar_days');
+                    await bloomDB.putBulk('calendar_days', newCells);
+                    await bloomDB.put('reflections', appData.reflections);
+                    showToast('Calendar layout updated in IndexedDB ✓');
+                } catch (e) {
+                    console.warn('Saved calendar preset in memory:', e);
+                }
+            }
+        }
+
+        const debouncedSaveMonthMeta = debounce(async () => {
+            appData.reflections.monthName = document.getElementById('calendar-month-input').value;
+            try {
+                await bloomDB.put('reflections', appData.reflections);
+                showToast('Month saved to IndexedDB ✓');
+            } catch (e) {
+                console.warn(e);
+            }
+        }, 400);
+
+        function openDayModal(cellIndex) {
+            editingCellIndex = cellIndex;
+            const cell = appData.calendarDays[cellIndex];
+            if (!cell) return;
+
+            const weekdayName = WEEKDAY_NAMES[cellIndex % 7];
+            const rowNum = Math.floor(cellIndex / 7) + 1;
+            const hasDay = cell.day !== null && cell.day !== undefined && String(cell.day).trim() !== '';
+
+            document.getElementById('modal-day-number').textContent = hasDay ? cell.day : '•';
+            document.getElementById('modal-col-label').textContent = `${weekdayName} (Row ${rowNum}) • Edit date, phrase, or notes`;
+            document.getElementById('modal-date-input').value = hasDay ? String(cell.day) : '';
+            document.getElementById('modal-phrase-input').value = cell.phrase || '';
+            document.getElementById('modal-note-input').value = cell.note || '';
+
+            modalTempColor = cell.colorClass || COLUMN_COLOR_PATTERN[cellIndex % 7];
+            modalTempBadges = {
+                hasQuoteBadge: !!cell.hasQuoteBadge,
+                hasHabitBadge: !!cell.hasHabitBadge,
+                hasMoodBadge: !!cell.hasMoodBadge
+            };
+
+            renderModalColorChoices();
+            renderModalBadgeChoices();
+
+            const modal = document.getElementById('day-modal');
+            modal.classList.remove('hidden');
+            modal.classList.add('flex');
+            document.getElementById('modal-phrase-input').focus();
+        }
+
+        function closeDayModal() {
+            const modal = document.getElementById('day-modal');
+            modal.classList.add('hidden');
+            modal.classList.remove('flex');
+            editingCellIndex = null;
+        }
+
+        function selectModalColor(colorClass) {
+            modalTempColor = colorClass;
+            renderModalColorChoices();
+        }
+
+        function resetModalCellToColumnColor() {
+            if (editingCellIndex === null) return;
+            modalTempColor = COLUMN_COLOR_PATTERN[editingCellIndex % 7];
+            renderModalColorChoices();
+        }
+
+        function renderModalColorChoices() {
+            ['cell-white', 'cell-lilac', 'cell-pink', 'cell-mint', 'cell-yellow'].forEach(c => {
+                const btn = document.getElementById(`color-opt-${c}`);
+                if (btn) {
+                    if (modalTempColor === c) {
+                        btn.className = `w-8 h-8 rounded-xl border-2 border-bloom-purple-dark scale-110 shadow-xs ${c}`;
+                    } else {
+                        btn.className = `w-8 h-8 rounded-xl border border-gray-200 opacity-75 hover:opacity-100 ${c}`;
+                    }
+                }
+            });
+        }
+
+        function toggleModalBadge(badgeKey) {
+            modalTempBadges[badgeKey] = !modalTempBadges[badgeKey];
+            renderModalBadgeChoices();
+        }
+
+        function renderModalBadgeChoices() {
+            ['hasQuoteBadge', 'hasHabitBadge', 'hasMoodBadge'].forEach(key => {
+                const btn = document.getElementById(`badge-btn-${key}`);
+                if (btn) {
+                    if (modalTempBadges[key]) {
+                        btn.className = "py-2 px-3 rounded-xl border border-bloom-purple-dark bg-bloom-lilac text-bloom-purple-dark text-xs font-bold flex items-center justify-center gap-1.5 transition-all";
+                    } else {
+                        btn.className = "py-2 px-3 rounded-xl border border-gray-200 bg-white text-gray-500 text-xs font-semibold flex items-center justify-center gap-1.5 transition-all";
+                    }
+                }
+            });
+        }
+
+        async function saveDayModalToDB() {
+            if (editingCellIndex === null) return;
+            const cell = appData.calendarDays[editingCellIndex];
+            cell.day = document.getElementById('modal-date-input').value.trim();
+            cell.phrase = document.getElementById('modal-phrase-input').value.trim();
+            cell.note = document.getElementById('modal-note-input').value.trim();
+            cell.colorClass = modalTempColor;
+            cell.hasQuoteBadge = modalTempBadges.hasQuoteBadge;
+            cell.hasHabitBadge = modalTempBadges.hasHabitBadge;
+            cell.hasMoodBadge = modalTempBadges.hasMoodBadge;
+            cell.schemaVersion = 3;
+
+            renderCalendarPage();
+            closeDayModal();
+
+            try {
+                await bloomDB.put('calendar_days', cell);
+                showToast(cell.day ? `Day ${cell.day} saved to IndexedDB ✓` : 'Calendar cell saved to IndexedDB ✓');
+            } catch (e) {
+                console.warn(e);
+            }
+        }
+
+        // =======================================================
+        // INDEXEDDB INSPECTOR, JSON BACKUP & RESTORE
+        // =======================================================
+        function openDbModal() {
+            document.getElementById('stat-daily').textContent = '1 record';
+            document.getElementById('stat-habits').textContent = `${appData.habits.length} rows`;
+            document.getElementById('stat-reflections').textContent = '1 record';
+            document.getElementById('stat-calendar').textContent = `${appData.calendarDays.length} cells`;
+
+            const modal = document.getElementById('db-modal');
+            modal.classList.remove('hidden');
+            modal.classList.add('flex');
+        }
+
+        function closeDbModal() {
+            const modal = document.getElementById('db-modal');
+            modal.classList.add('hidden');
+            modal.classList.remove('flex');
+        }
+
+        async function exportIndexedDBToJson() {
+            const payload = {
+                exportedAt: new Date().toISOString(),
+                database: 'BloomDailyDB_v3',
+                version: 1,
+                stores: {
+                    daily_space: await bloomDB.getAll('daily_space'),
+                    habits: await bloomDB.getAll('habits'),
+                    reflections: await bloomDB.getAll('reflections'),
+                    calendar_days: await bloomDB.getAll('calendar_days')
+                }
+            };
+
+            const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `bloom-daily-indexeddb-backup-${new Date().toISOString().slice(0, 10)}.json`;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+            showToast('Exported IndexedDB backup ✓');
+        }
+
+        async function importJsonToIndexedDB(event) {
+            const file = event.target.files[0];
+            if (!file) return;
+
+            try {
+                const text = await file.text();
+                const parsed = JSON.parse(text);
+                if (!parsed.stores) throw new Error('Invalid backup format');
+
+                if (Array.isArray(parsed.stores.daily_space)) {
+                    await bloomDB.clearStore('daily_space');
+                    await bloomDB.putBulk('daily_space', parsed.stores.daily_space);
+                }
+                if (Array.isArray(parsed.stores.habits)) {
+                    await bloomDB.clearStore('habits');
+                    await bloomDB.putBulk('habits', parsed.stores.habits);
+                }
+                if (Array.isArray(parsed.stores.reflections)) {
+                    await bloomDB.clearStore('reflections');
+                    await bloomDB.putBulk('reflections', parsed.stores.reflections);
+                }
+                if (Array.isArray(parsed.stores.calendar_days)) {
+                    await bloomDB.clearStore('calendar_days');
+                    await bloomDB.putBulk('calendar_days', parsed.stores.calendar_days);
+                }
+
+                await ensureSeededAndLoadData();
+                renderEntireApp();
+                closeDbModal();
+                showToast('Backup restored into IndexedDB ✓');
+            } catch (err) {
+                console.error('Import failed:', err);
+                showToast('Could not import JSON file');
+            } finally {
+                event.target.value = '';
+            }
+        }
+
+        async function factoryResetIndexedDB() {
+            await bloomDB.clearStore('daily_space');
+            await bloomDB.clearStore('habits');
+            await bloomDB.clearStore('reflections');
+            await bloomDB.clearStore('calendar_days');
+
+            await ensureSeededAndLoadData();
+            renderEntireApp();
+            closeDbModal();
+            showToast('IndexedDB reset to wireframe defaults ✓');
+        }
+
+        function escapeHtml(str) {
+            return String(str)
+                .replace(/&/g, "&amp;")
+                .replace(/</g, "&lt;")
+                .replace(/>/g, "&gt;")
+                .replace(/"/g, "&quot;")
+                .replace(/'/g, "&#039;");
+        }
+    </script>
+</body>
+</html>
